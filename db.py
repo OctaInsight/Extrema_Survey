@@ -27,7 +27,6 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from supabase import Client, create_client
 
 TABLE_NAME = "extrema_needs_survey"
 
@@ -84,9 +83,29 @@ def supabase_configured() -> bool:
     return bool(s.get("url") and s.get("key"))
 
 
+def _import_supabase():
+    """Import the client library, with a message that says how to fix it.
+
+    Imported here rather than at module level so a missing dependency shows a
+    readable message instead of crashing the whole app on startup.
+    """
+    try:
+        from supabase import create_client  # noqa: PLC0415
+    except ModuleNotFoundError as exc:  # noqa: BLE001
+        raise StorageError(
+            "The `supabase` package is not installed in this environment. "
+            "Check that requirements.txt sits in the repository root next to app.py, "
+            "that it contains a line reading `supabase>=2.10`, and that it is "
+            "committed and pushed. Then use Manage app > Reboot on Streamlit Cloud "
+            "so the environment is rebuilt."
+        ) from exc
+    return create_client
+
+
 @st.cache_resource(show_spinner=False)
-def get_client(role: str = "anon") -> Client:
+def get_client(role: str = "anon"):
     """Cached Supabase client. role is 'anon' (writes) or 'service' (reads)."""
+    create_client = _import_supabase()
     s = _secrets()
     url = s.get("url")
     if role == "service":
@@ -98,8 +117,16 @@ def get_client(role: str = "anon") -> Client:
     return create_client(url, key)
 
 
+def supabase_installed() -> bool:
+    import importlib.util  # noqa: PLC0415
+
+    return importlib.util.find_spec("supabase") is not None
+
+
 def backend_name() -> str:
-    return "Supabase" if supabase_configured() else "local CSV"
+    if not supabase_configured():
+        return "local CSV"
+    return "Supabase" if supabase_installed() else "Supabase (package missing)"
 
 
 def stamp() -> str:
@@ -176,6 +203,9 @@ def fetch_responses() -> pd.DataFrame:
             extras = pd.json_normalize(df["raw"].apply(lambda x: x or {}))
             df = pd.concat([df.drop(columns=["raw"]), extras], axis=1)
         return df.rename(columns=REVERSE_MAP)
+    except StorageError as exc:
+        st.error(str(exc))
+        return pd.DataFrame()
     except Exception as exc:  # noqa: BLE001
         st.error(
             f"Could not read from Supabase ({exc}). If you used Option A in the schema, "
@@ -201,6 +231,8 @@ def connection_check() -> tuple[bool, str]:
             f"Connected to Supabase, reading `{TABLE_NAME}` with the {reading_with}. "
             f"{res.count} row(s)."
         )
+    except StorageError as exc:
+        return False, str(exc)
     except Exception as exc:  # noqa: BLE001
         return False, f"Could not reach `{TABLE_NAME}` ({exc})."
 
