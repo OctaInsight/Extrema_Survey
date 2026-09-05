@@ -27,7 +27,6 @@ from content import (
     HAZARDS,
     HERITAGE_TYPES,
     NEEDS,
-    ORG_TYPES,
     PROJECT,
     SCALE,
 )
@@ -66,21 +65,24 @@ st.markdown(
       .standfirst { color: var(--muted); font-size: .95rem; line-height: 1.55; max-width: 40rem; }
 
       .qcard {
-        border-left: 3px solid var(--verdi);
-        background: #FBFBFA;
-        padding: .85rem 1rem .35rem 1rem;
-        margin: 1.1rem 0 .2rem 0;
+        background: #16232E;
+        border-left: 3px solid #4E9AA3;
+        padding: 1rem 1.15rem .95rem 1.15rem;
+        margin: 1.4rem 0 .35rem 0;
       }
       .qcard .qhead {
         font-family: Georgia, "Iowan Old Style", serif; font-weight: 700;
-        font-size: 1.02rem; margin-bottom: .3rem; color: var(--ink);
+        font-size: 1.05rem; margin-bottom: .35rem; color: #FFFFFF;
       }
-      .qcard.small .qhead { font-size: .95rem; }
-      .qcard .qid {
-        color: var(--verdi); margin-right: .5rem;
+      .qcard.small { padding: .8rem 1.15rem .7rem 1.15rem; }
+      .qcard.small .qhead { font-size: .96rem; }
+      .qcard .qid { color: #7FC4CC; margin-right: .5rem; }
+      .qcard .qtext { font-size: .95rem; line-height: 1.55; color: #DCE5E9; }
+      .qcard .qtext strong { color: #FFFFFF; }
+      .qcard .lands {
+        color: #8FA4AF; font-size: .77rem; margin-top: .6rem;
+        padding-top: .5rem; border-top: 1px solid #2B3B47;
       }
-      .qcard .qtext { font-size: .95rem; line-height: 1.55; }
-      .lands { color: var(--muted); font-size: .78rem; margin-top: .5rem; }
 
       .example {
         border-left: 2px solid var(--rule); padding: .1rem 0 .1rem .8rem;
@@ -178,13 +180,6 @@ def survey_page() -> None:
     with c2:
         country = st.text_input("Country", placeholder="e.g. Greece")
 
-    group = st.radio(
-        "Which best describes your organisation?",
-        [t[0] for t in ORG_TYPES],
-        format_func=lambda k: dict(ORG_TYPES)[k],
-        index=None,
-    )
-
     c3, c4 = st.columns(2)
     with c3:
         respondent = st.text_input("Your name")
@@ -192,10 +187,9 @@ def survey_page() -> None:
         role = st.text_input("Your role", placeholder="e.g. Head of heritage service")
     email = st.text_input("Email", placeholder="for follow-up questions only")
 
-    if not org_name.strip() or group is None:
+    if not org_name.strip():
         st.markdown(
-            '<div class="note">Enter your organisation and choose the type that '
-            "describes it to continue.</div>",
+            '<div class="note">Enter your organisation to continue.</div>',
             unsafe_allow_html=True,
         )
         return
@@ -214,12 +208,6 @@ def survey_page() -> None:
         need_scores: dict[str, int] = {}
         for n in NEEDS:
             need_scores[n["id"]] = render_need(n)
-
-        out_of_scope = st.multiselect(
-            "Are any of these areas outside your organisation's remit entirely?",
-            [f'{n["id"]} — {n["short"]}' for n in NEEDS],
-            help="These are excluded from the averages rather than counted as a low score.",
-        )
 
         st.markdown("## Organisational capacity")
         st.markdown(
@@ -269,37 +257,34 @@ def survey_page() -> None:
         # ------------------------------------------------------------------
         # Authority block
         # ------------------------------------------------------------------
-        assets = hazards = permit_body = plans = charter = staff = ""
-        heritage_types: list[str] = []
-        if group == "authority":
-            st.markdown("## Your heritage and your hazards")
-            assets = st.text_area(
-                "Which assets would you put forward for work in this project?",
-                height=90,
-                placeholder="Name them: e.g. Torre del Toston (c.1700, coastal masonry); "
-                            "aljibes of the Ruta del Agua",
-            )
-            heritage_types = st.multiselect(
-                "Types of heritage you are responsible for", HERITAGE_TYPES
-            )
-            hazards = st.multiselect("Hazards already affecting these assets", HAZARDS)
-            permit_body = st.text_input(
-                "Which body must authorise physical work on them?",
-                placeholder="e.g. Ephorate of Antiquities of Chania",
-            )
-            plans = st.text_area(
-                "Existing climate, adaptation or emergency plans that cover this heritage",
-                height=70,
-                placeholder="Title, year, and whether heritage is named in it",
-            )
-            charter = st.radio(
-                "Has your authority signed the Mission Charter on Adaptation to Climate Change?",
-                ["Yes", "No", "Not sure"], index=2, horizontal=True,
-            )
-            staff = st.text_input(
-                "Approximate staff time available for heritage management (FTE)",
-                placeholder="e.g. 2.5",
-            )
+        st.markdown("## Your heritage and your hazards")
+        assets = st.text_area(
+            "Which assets would you put forward for work in this project?",
+            height=90,
+            placeholder="Name them: e.g. Torre del Toston (c.1700, coastal masonry); "
+                        "aljibes of the Ruta del Agua",
+        )
+        heritage_types = st.multiselect(
+            "Types of heritage you are responsible for", HERITAGE_TYPES
+        )
+        hazards = st.multiselect("Hazards already affecting these assets", HAZARDS)
+        permit_body = st.text_input(
+            "Which body must authorise physical work on them?",
+            placeholder="e.g. Ephorate of Antiquities of Chania",
+        )
+        plans = st.text_area(
+            "Existing climate, adaptation or emergency plans that cover this heritage",
+            height=70,
+            placeholder="Title, year, and whether heritage is named in it",
+        )
+        charter = st.radio(
+            "Has your authority signed the Mission Charter on Adaptation to Climate Change?",
+            ["Yes", "No", "Not sure"], index=2, horizontal=True,
+        )
+        staff = st.text_input(
+            "Approximate staff time available for heritage management (FTE)",
+            placeholder="e.g. 2.5",
+        )
 
         st.markdown("## Last question")
         barrier = st.text_area(
@@ -330,13 +315,12 @@ def survey_page() -> None:
             "partner_code": code,
             "partner_name": org_name.strip(),
             "country": country.strip(),
-            "group": group,
+            "group": "",
             "respondent": respondent.strip(),
             "role": role.strip(),
             "email": email.strip(),
             **{n["id"]: need_scores[n["id"]] for n in NEEDS},
             **cap_scores,
-            "out_of_scope": "; ".join(out_of_scope),
             "financing": financing,
             "funding_routes": "; ".join(funding_routes),
             "discontinued_pilot": discontinued,
@@ -397,10 +381,11 @@ def coordinator_page() -> None:
         if col in df:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    a, b, c = st.columns(3)
+    has_group = "group" in df.columns and df["group"].astype(str).str.strip().ne("").any()
+
+    a, b = st.columns(2)
     a.metric("Responses", len(df))
-    b.metric("Authorities", int((df["group"] == "authority").sum()))
-    c.metric("Technical & support", int((df["group"] != "authority").sum()))
+    b.metric("Organisations", int(df["partner_code"].nunique()))
 
     names = sorted(df["partner_name"].dropna().unique())
     st.markdown(
@@ -420,8 +405,11 @@ def coordinator_page() -> None:
         )
 
     st.markdown("## Mean capability by need")
-    by_group = df.groupby("group")[need_ids].mean().round(2).T
-    by_group["all"] = df[need_ids].mean().round(2).values
+    if has_group:
+        by_group = df.groupby("group")[need_ids].mean().round(2).T
+        by_group["all"] = df[need_ids].mean().round(2).values
+    else:
+        by_group = df[need_ids].mean().round(2).to_frame("all")
     by_group.index = [f'{n["id"]} {n["short"]}' for n in NEEDS]
     st.dataframe(by_group, use_container_width=True)
     st.bar_chart(df[need_ids].mean().round(2))
@@ -464,9 +452,8 @@ def coordinator_page() -> None:
     y.metric("Reported a discontinued pilot", f"{stopped} of {len(df)}")
 
     st.markdown("## Draft text for Section 1.2.1.4")
-    auth = df[df["group"] == "authority"]
-    tech = df[df["group"] != "authority"]
-    if not auth.empty and not tech.empty:
+    auth = df[df["group"] == "authority"] if has_group else df
+    if not auth.empty:
         a_means = auth[need_ids].mean()
         weakest = a_means.nsmallest(3)
         strongest = a_means.nlargest(1)
@@ -474,12 +461,12 @@ def coordinator_page() -> None:
         draft = (
             f"A partner-level assessment grounds the work plan. {len(df)} responses were returned, "
             f"one per beneficiary, each rating institutional capability against the seven need areas "
-            f"and four capacity dimensions on a five-point scale. The demonstration and replicating "
-            f"authorities rate themselves weakest on "
+            f"and four capacity dimensions on a five-point scale. Respondents rate themselves "
+            f"weakest on "
             + ", ".join(f"{short[i]} ({i}, mean {v:.1f})" for i, v in weakest.items())
             + f", and strongest on "
             + ", ".join(f"{short[i]} ({i}, {v:.1f})" for i, v in strongest.items())
-            + f"; the technical partners show the inverse profile. "
+            + ". "
             f"{no_fin} of {len(df)} respondents report no identified financing to maintain "
             f"monitoring after a project ends, and {stopped} report an earlier heritage or climate "
             f"pilot that did not continue after its funding ended, which evidences N7 directly. "
