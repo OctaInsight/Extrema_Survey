@@ -27,8 +27,7 @@ from content import (
     HAZARDS,
     HERITAGE_TYPES,
     NEEDS,
-    PARTNER_LOOKUP,
-    PARTNERS,
+    ORG_TYPES,
     PROJECT,
     SCALE,
 )
@@ -72,12 +71,32 @@ st.markdown(
         padding: .85rem 1rem .35rem 1rem;
         margin: 1.1rem 0 .2rem 0;
       }
-      .qcard .qid {
-        font-family: Georgia, serif; font-weight: 700; color: var(--verdi);
-        font-size: .95rem; margin-right: .45rem;
+      .qcard .qhead {
+        font-family: Georgia, "Iowan Old Style", serif; font-weight: 700;
+        font-size: 1.02rem; margin-bottom: .3rem; color: var(--ink);
       }
-      .qcard .qtext { font-size: .97rem; line-height: 1.5; }
-      .lands { color: var(--muted); font-size: .78rem; margin-top: .45rem; }
+      .qcard.small .qhead { font-size: .95rem; }
+      .qcard .qid {
+        color: var(--verdi); margin-right: .5rem;
+      }
+      .qcard .qtext { font-size: .95rem; line-height: 1.55; }
+      .lands { color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+
+      .example {
+        border-left: 2px solid var(--rule); padding: .1rem 0 .1rem .8rem;
+        margin: .7rem 0; font-size: .89rem; color: var(--muted); line-height: 1.55;
+      }
+      .anchor {
+        display: flex; gap: .6rem; align-items: baseline;
+        font-size: .89rem; line-height: 1.5; margin: .35rem 0;
+      }
+      .anchor-n {
+        flex: 0 0 1.45rem; height: 1.45rem; line-height: 1.45rem; text-align: center;
+        background: var(--verdi-lo); color: var(--verdi);
+        font-family: Georgia, serif; font-weight: 700; font-size: .82rem;
+      }
+      [data-testid="stExpander"] details { border: 1px solid var(--rule); border-radius: 0; }
+      [data-testid="stExpander"] summary { font-size: .85rem; color: var(--verdi); }
 
       .note {
         border: 1px solid var(--rule); background: #fff;
@@ -103,74 +122,130 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Survey page
 # ---------------------------------------------------------------------------
+def render_need(n: dict) -> int:
+    """Show one need in full, then return the rating."""
+    st.markdown(
+        f'<div class="qcard">'
+        f'<div class="qhead"><span class="qid">{n["id"]}</span>{n["title"]}</div>'
+        f'<div class="qtext">{n["prompt"]}</div>'
+        f'<div class="lands">{n["lands"]}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("What this means, and what each score looks like"):
+        st.markdown(n["meaning"])
+        st.markdown(f'<div class="example">{n["example"]}</div>', unsafe_allow_html=True)
+        st.markdown("**Where your organisation sits**")
+        for score in (1, 3, 5):
+            st.markdown(
+                f'<div class="anchor"><span class="anchor-n">{score}</span>'
+                f'{n["anchors"][score]}</div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("Scores of 2 and 4 fall between the descriptions above.")
+
+    return st.select_slider(
+        f'Your rating for {n["id"]}',
+        options=[1, 2, 3, 4, 5],
+        value=3,
+        format_func=lambda v: SCALE[v],
+        key=f"need_{n['id']}",
+        label_visibility="collapsed",
+    )
+
+
 def survey_page() -> None:
     st.title("How ready is your organisation?")
     st.markdown(
         f'<p class="standfirst">This survey establishes the baseline for the '
-        f'{PROJECT} proposal to {CALL}, closing {DEADLINE}. It takes about ten minutes. '
-        f'Answer for your <strong>organisation as it is today</strong>, not for what the project '
-        f'will make possible — an honest low score is more useful than a generous one, '
-        f'because the work plan assigns support to whoever needs it.</p>',
+        f"{PROJECT} proposal to {CALL}, closing {DEADLINE}. It takes about fifteen minutes. "
+        f"Answer for your <strong>organisation as it is today</strong>, not for what the project "
+        f"will make possible. An honest low score is more useful than a generous one, because "
+        f"the work plan assigns support to whoever needs it and leadership to whoever is "
+        f"strongest.</p>",
         unsafe_allow_html=True,
     )
 
     st.markdown("## Who is answering")
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        codes = ["— select —"] + [p[0] for p in PARTNERS]
-        code = st.selectbox(
-            "Your organisation",
-            codes,
-            format_func=lambda c: c if c == "— select —"
-            else f"{c} — {PARTNER_LOOKUP[c]['name']} ({PARTNER_LOOKUP[c]['country']})",
-        )
-    with col2:
-        respondent = st.text_input("Your name")
+    org_name = st.text_input(
+        "Organisation",
+        placeholder="Full legal name, e.g. Municipality of Chania",
+    )
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        org_short = st.text_input("Short name or acronym", placeholder="e.g. CHANIA")
+    with c2:
+        country = st.text_input("Country", placeholder="e.g. Greece")
 
-    role = st.text_input("Your role", placeholder="e.g. Head of heritage service")
+    group = st.radio(
+        "Which best describes your organisation?",
+        [t[0] for t in ORG_TYPES],
+        format_func=lambda k: dict(ORG_TYPES)[k],
+        index=None,
+    )
+
+    c3, c4 = st.columns(2)
+    with c3:
+        respondent = st.text_input("Your name")
+    with c4:
+        role = st.text_input("Your role", placeholder="e.g. Head of heritage service")
     email = st.text_input("Email", placeholder="for follow-up questions only")
 
-    if code == "— select —":
+    if not org_name.strip() or group is None:
         st.markdown(
-            '<div class="note">Select your organisation to continue.</div>',
+            '<div class="note">Enter your organisation and choose the type that '
+            "describes it to continue.</div>",
             unsafe_allow_html=True,
         )
         return
 
-    meta = PARTNER_LOOKUP[code]
-    group = meta["group"]
-
     with st.form("survey", clear_on_submit=False):
         st.markdown("## The seven capability areas")
         st.markdown(
-            '<p class="standfirst">Rate your organisation from 1 (none) to 5 (strong). '
-            'If an area is outside your remit entirely, choose 1 and say so in the comment '
-            'box at the end.</p>',
+            '<p class="standfirst">These are the seven gaps the EXTREMA proposal is built to '
+            "close. Rate your organisation from 1 to 5 on each. Open <em>What this means</em> "
+            "under any question you are unsure about — it explains the gap and describes what "
+            "a 1, a 3 and a 5 look like in practice, so that scores mean the same thing across "
+            "all partners.</p>",
             unsafe_allow_html=True,
         )
 
         need_scores: dict[str, int] = {}
         for n in NEEDS:
-            st.markdown(
-                f'<div class="qcard"><span class="qid">{n["id"]}</span>'
-                f'<span class="qtext">{n["prompt"]}</span>'
-                f'<div class="lands">{n["lands"]}</div></div>',
-                unsafe_allow_html=True,
-            )
-            need_scores[n["id"]] = st.select_slider(
-                n["short"], options=[1, 2, 3, 4, 5], value=3,
-                format_func=lambda v: SCALE[v], help=n["help"], key=f"need_{n['id']}",
-            )
+            need_scores[n["id"]] = render_need(n)
+
+        out_of_scope = st.multiselect(
+            "Are any of these areas outside your organisation's remit entirely?",
+            [f'{n["id"]} — {n["short"]}' for n in NEEDS],
+            help="These are excluded from the averages rather than counted as a low score.",
+        )
 
         st.markdown("## Organisational capacity")
+        st.markdown(
+            '<p class="standfirst">Four dimensions, asked of every partner.</p>',
+            unsafe_allow_html=True,
+        )
         cap_scores: dict[str, int] = {}
         for c in CAPACITIES:
+            st.markdown(
+                f'<div class="qcard small"><div class="qhead">{c["short"]}</div>'
+                f'<div class="qtext">{c["prompt"]}</div>'
+                f'<div class="lands">{c["meaning"]}</div></div>',
+                unsafe_allow_html=True,
+            )
             cap_scores[c["id"]] = st.select_slider(
                 c["short"], options=[1, 2, 3, 4, 5], value=3,
-                format_func=lambda v: SCALE[v], help=c["prompt"], key=c["id"],
+                format_func=lambda v: SCALE[v], key=c["id"],
+                label_visibility="collapsed",
             )
 
         st.markdown("## Continuity after funding ends")
+        st.markdown(
+            '<p class="standfirst">These two answers are the direct evidence for need N7 in '
+            "the proposal.</p>",
+            unsafe_allow_html=True,
+        )
         financing = st.radio(
             "Do you have an identified funding line to keep climate or heritage monitoring "
             "running after a project ends?",
@@ -192,7 +267,7 @@ def survey_page() -> None:
         )
 
         # ------------------------------------------------------------------
-        # Authority-only block
+        # Authority block
         # ------------------------------------------------------------------
         assets = hazards = permit_body = plans = charter = staff = ""
         heritage_types: list[str] = []
@@ -204,7 +279,9 @@ def survey_page() -> None:
                 placeholder="Name them: e.g. Torre del Toston (c.1700, coastal masonry); "
                             "aljibes of the Ruta del Agua",
             )
-            heritage_types = st.multiselect("Types of heritage you are responsible for", HERITAGE_TYPES)
+            heritage_types = st.multiselect(
+                "Types of heritage you are responsible for", HERITAGE_TYPES
+            )
             hazards = st.multiselect("Hazards already affecting these assets", HAZARDS)
             permit_body = st.text_input(
                 "Which body must authorise physical work on them?",
@@ -222,25 +299,6 @@ def survey_page() -> None:
             staff = st.text_input(
                 "Approximate staff time available for heritage management (FTE)",
                 placeholder="e.g. 2.5",
-            )
-
-        # ------------------------------------------------------------------
-        # Technical-partner block
-        # ------------------------------------------------------------------
-        components = trl = prior = ""
-        if group in ("technical", "support"):
-            st.markdown("## What you bring")
-            components = st.text_area(
-                "Which components or methods will you contribute?", height=90,
-                placeholder="One per line, with its current maturity",
-            )
-            trl = st.text_input(
-                "Technology readiness level of your main component today (1–9)",
-                placeholder="e.g. TRL 6",
-            )
-            prior = st.text_area(
-                "Where has it been demonstrated already?", height=70,
-                placeholder="Project, site, year, and what was measured",
             )
 
         st.markdown("## Last question")
@@ -265,18 +323,20 @@ def survey_page() -> None:
             st.error("Tick the consent box to submit.")
             return
 
+        code = (org_short.strip() or org_name.strip()[:24]).upper()
         row = {
             "response_id": str(uuid.uuid4())[:8],
             "submitted_at": db.stamp(),
             "partner_code": code,
-            "partner_name": meta["name"],
-            "country": meta["country"],
+            "partner_name": org_name.strip(),
+            "country": country.strip(),
             "group": group,
             "respondent": respondent.strip(),
             "role": role.strip(),
             "email": email.strip(),
             **{n["id"]: need_scores[n["id"]] for n in NEEDS},
             **cap_scores,
+            "out_of_scope": "; ".join(out_of_scope),
             "financing": financing,
             "funding_routes": "; ".join(funding_routes),
             "discontinued_pilot": discontinued,
@@ -288,9 +348,6 @@ def survey_page() -> None:
             "existing_plans": plans.strip() if isinstance(plans, str) else "",
             "mission_charter": charter,
             "heritage_fte": staff.strip() if isinstance(staff, str) else "",
-            "components": components.strip(),
-            "trl": trl.strip(),
-            "prior_demonstration": prior.strip(),
             "biggest_barrier": barrier.strip(),
             "comments": comments.strip(),
         }
@@ -340,18 +397,25 @@ def coordinator_page() -> None:
         if col in df:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    responded = df["partner_code"].nunique()
-    total = len(PARTNERS)
-
     a, b, c = st.columns(3)
-    a.metric("Responses", f"{responded} / {total}")
+    a.metric("Responses", len(df))
     b.metric("Authorities", int((df["group"] == "authority").sum()))
     c.metric("Technical & support", int((df["group"] != "authority").sum()))
 
-    missing = sorted({p[0] for p in PARTNERS} - set(df["partner_code"]))
-    if missing:
+    names = sorted(df["partner_name"].dropna().unique())
+    st.markdown(
+        f'<div class="note"><strong>Received from:</strong> {", ".join(names)}</div>',
+        unsafe_allow_html=True,
+    )
+    dupes = df["partner_code"].value_counts()
+    dupes = dupes[dupes > 1]
+    if len(dupes):
+        listed = ", ".join(f"{k} ({v})" for k, v in dupes.items())
         st.markdown(
-            f'<div class="note flag"><strong>Still to respond:</strong> {", ".join(missing)}</div>',
+            '<div class="note flag"><strong>More than one response from:</strong> '
+            + listed
+            + ". All are counted in the means below \u2014 deduplicate before quoting them."
+            + "</div>",
             unsafe_allow_html=True,
         )
 
